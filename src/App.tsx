@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from './lib/firebase';
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, User } from 'firebase/auth';
 import { Sidebar } from './components/Sidebar';
 import { ProjectBoard } from './components/ProjectBoard';
 import { LogIn, Search, Loader2 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,11 +21,32 @@ export default function App() {
   }, []);
 
   const login = async () => {
+    setError(null);
     const provider = new GoogleAuthProvider();
+    
+    // Check if we are in an iframe or a restricted environment
+    const isInIframe = window.self !== window.top;
+    
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error(error);
+      if (isInIframe) {
+        // Popups usually fail in iframes, so we try redirect
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/unauthorized-domain') {
+        setError(`Unauthorized Domain: Please add ${window.location.hostname} to authorized domains in Firebase Console (Authentication > Settings > Authorized domains).`);
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Login popup was blocked. Please enable popups or try again.');
+        // Try redirect as fallback for blocked popup
+        signInWithRedirect(auth, provider).catch(rerr => {
+          setError(`Redirect failed: ${rerr.message}`);
+        });
+      } else {
+        setError(err.message || 'Authentication failed. Please try again.');
+      }
     }
   };
 
@@ -67,6 +89,19 @@ export default function App() {
             <LogIn className="w-4 h-4" />
             Get Started
           </button>
+
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium"
+              >
+                {error}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     );

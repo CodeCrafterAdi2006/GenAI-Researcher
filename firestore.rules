@@ -1,8 +1,8 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net - Default Deny
+    
+    // Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
@@ -13,67 +13,48 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Validate a project document
     function isValidProject(data) {
-      return data.size() == 3 
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 256
+      return data.keys().hasAll(['userId', 'name', 'createdAt'])
         && data.userId == request.auth.uid
+        && data.name is string && data.name.size() <= 256
         && data.createdAt == request.time;
     }
 
-    // Validate a source document
     function isValidSource(data) {
       return data.keys().hasAll(['type', 'title', 'content', 'createdAt'])
-        && data.type in ['url', 'text', 'file']
-        && data.title is string && data.title.size() <= 512
-        && data.content is string && data.content.size() <= 500000
+        && (data.type == 'url' || data.type == 'text' || data.type == 'file')
+        && data.title is string && data.title.size() <= 1024
+        && data.content is string && data.content.size() <= 800000
         && data.createdAt == request.time;
     }
 
-    // Validate a message document
     function isValidMessage(data) {
       return data.keys().hasAll(['role', 'content', 'createdAt'])
-        && data.role in ['user', 'model']
-        && data.content is string && data.content.size() <= 50000
+        && (data.role == 'user' || data.role == 'model')
+        && data.content is string && data.content.size() <= 100000
         && data.createdAt == request.time;
     }
-
-    // --- COLLECTION RULES ---
 
     // Project Collection
     match /projects/{projectId} {
-      allow create: if isSignedIn() && isValidProject(request.resource.data) && isValidId(projectId);
-      allow get, delete: if isOwner(resource.data.userId);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      
-      // Update: Projects are generally immutable except for certain fields (if we added any)
-      // Currently, we don't have update logic, so we keep it restricted.
+      allow create: if isSignedIn() && isValidProject(request.resource.data);
+      allow get, delete, list: if isSignedIn() && resource.data.userId == request.auth.uid;
       
       // Source Subcollection
       match /sources/{sourceId} {
         allow create: if isSignedIn() 
           && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid
-          && isValidSource(request.resource.data)
-          && isValidId(sourceId);
+          && isValidSource(request.resource.data);
           
         allow list, get, delete: if isSignedIn() 
           && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid;
       }
-
+      
       // Message Subcollection
       match /messages/{messageId} {
         allow create: if isSignedIn() 
           && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid
-          && isValidMessage(request.resource.data)
-          && isValidId(messageId);
+          && isValidMessage(request.resource.data);
           
         allow list, get: if isSignedIn() 
           && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid;

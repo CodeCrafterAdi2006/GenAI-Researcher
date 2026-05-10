@@ -31,9 +31,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const isPermissionDenied = errMessage.toLowerCase().includes('permission') || errMessage.toLowerCase().includes('insufficient');
   
   if (isPermissionDenied) {
-    alert(`Intelligence Core Alert: Access Denied. You do not have permission to ${operationType} this node (${path}).`);
+    alert(`Intelligence Core Alert: Access Denied. You do not have permission to ${operationType} this node (${path}). Ensure you are the owner of this workspace.`);
   } else {
-    alert(`Intelligence Core Alert: System failure during ${operationType} at ${path}.`);
+    alert(`Intelligence Core Alert: ${operationType.toUpperCase()} Error at ${path}: ${errMessage}`);
   }
 
   const errInfo: FirestoreErrorInfo = {

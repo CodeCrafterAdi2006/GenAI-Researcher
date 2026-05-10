@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import axios from "axios";
-import { JSDOM } from "jsdom";
+import * as cheerio from "cheerio";
 import * as pdf from "pdf-parse";
 import multer from "multer";
 import { fileURLToPath } from "url";
@@ -25,29 +25,54 @@ export async function createExpressApp() {
     if (!url) return res.status(400).json({ error: "URL is required" });
 
     try {
-      console.log(`Scraping URL: ${url}`);
-      const response = await axios.get(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        },
-        timeout: 10000
-      });
-      const dom = new JSDOM(response.data);
-      const doc = dom.window.document;
+      console.log(`[SCRAPE] Starting: ${url}`);
+      let response;
+      try {
+        response = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9'
+          },
+          timeout: 15000,
+          maxContentLength: 10 * 1024 * 1024 // 10MB limit
+        });
+      } catch (axiosError: any) {
+        console.error(`[SCRAPE] Fetch failed for ${url}:`, axiosError.message);
+        return res.status(axiosError.response?.status || 500).json({ 
+          error: `Failed to fetch URL: ${axiosError.message}`,
+          details: axiosError.response?.data
+        });
+      }
 
-      const scripts = doc.querySelectorAll('script, style, nav, footer, header');
-      scripts.forEach(s => s.remove());
+      if (!response.data || typeof response.data !== 'string') {
+        return res.status(422).json({ error: "URL returned non-textual content" });
+      }
 
-      const content = doc.body.textContent || "";
-      const title = doc.title || url;
+      console.log(`[SCRAPE] Parsing content for ${url} with Cheerio`);
+      
+      const $ = cheerio.load(response.data);
+
+      // Remove unwanted elements
+      $('script, style, nav, footer, header, noscript, iframe, .ads, #ads').remove();
+
+      // Get readable content
+      // We try to focus on main content if possible, otherwise body
+      const content = $('main, article, .content, #content, body').text() || "";
+      const title = $('title').text() || url;
+
+      const cleanContent = content.replace(/\s+/g, ' ').trim().substring(0, 500000);
+      const cleanTitle = title.trim().substring(0, 500);
+
+      console.log(`[SCRAPE] Success: ${url} (Title: ${cleanTitle}, Content: ${cleanContent.length} chars)`);
 
       res.json({
-        title: title.trim().substring(0, 500),
-        content: content.replace(/\s+/g, ' ').trim().substring(0, 100000)
+        title: cleanTitle || "Untitled Source",
+        content: cleanContent || "No readable content found."
       });
-    } catch (error) {
-      console.error("Scraping error:", error);
-      res.status(500).json({ error: "Failed to scrape URL" });
+    } catch (error: any) {
+      console.error("[SCRAPE] Unexpected error during processing:", error.message);
+      res.status(500).json({ error: "System failure during content extraction", details: error.message });
     }
   });
 

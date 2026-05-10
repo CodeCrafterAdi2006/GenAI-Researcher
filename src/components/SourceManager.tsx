@@ -42,8 +42,10 @@ export function SourceManager({ projectId }: { projectId: string }) {
 
       setUrl('');
       setIsUrlAdding(false);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+    } catch (err: any) {
+      const apiError = err.response?.data?.error || err.response?.data?.details || err.message;
+      alert(`Knowledge Ingestion Failed: ${apiError}`);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -96,8 +98,10 @@ export function SourceManager({ projectId }: { projectId: string }) {
           createdAt: serverTimestamp()
         });
       }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
+    } catch (err: any) {
+      const apiError = err.response?.data?.error || err.response?.data?.details || err.message;
+      alert(`Knowledge Ingestion Failed: ${apiError}`);
+      console.error(err);
     } finally {
       setLoading(false);
       if (e.target) e.target.value = '';

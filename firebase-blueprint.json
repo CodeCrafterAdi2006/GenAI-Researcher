@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "A research project collection.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the project" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "createdAt", "userId"]
+    },
+    "Source": {
+      "title": "Source",
+      "description": "A piece of knowledge added to a project.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["url", "text", "file"] },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "title", "content", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message in a project.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "asst"] },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "citations": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["role", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Users' research projects"
+    },
+    "/projects/{projectId}/sources/{sourceId}": {
+      "schema": "Source",
+      "description": "Knowledge sources for a project"
+    },
+    "/projects/{projectId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat log for a project"
+    }
+  }
+}

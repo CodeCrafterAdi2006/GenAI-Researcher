@@ -1,0 +1,6 @@
+{
+  "name": "GenAI Researcher",
+  "description": "An end-to-end GenAI Research Assistant that can crawl websites, analyze documents, and chat with your data using Gemini AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

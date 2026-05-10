@@ -11,11 +11,8 @@ const __dirname = path.dirname(__filename);
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-async function startServer() {
-  console.log("Starting GenAI Researcher server...");
+export async function createExpressApp() {
   const app = express();
-  const PORT = 3000;
-
   app.use(express.json({ limit: '50mb' }));
 
   // API Routes
@@ -38,7 +35,6 @@ async function startServer() {
       const dom = new JSDOM(response.data);
       const doc = dom.window.document;
 
-      // Basic cleanup
       const scripts = doc.querySelectorAll('script, style, nav, footer, header');
       scripts.forEach(s => s.remove());
 
@@ -62,17 +58,14 @@ async function startServer() {
       console.log(`Analyzing PDF: ${req.file.originalname} (${req.file.size} bytes)`);
       
       let text = "";
-      // Handle the different possible export patterns of pdf-parse v2.4.5
       const pdfModule = pdf as any;
       const PDFParseClass = pdfModule.PDFParse || (pdfModule.default && pdfModule.default.PDFParse) || pdfModule.default;
       
       if (typeof PDFParseClass === 'function' && PDFParseClass.prototype && PDFParseClass.prototype.getText) {
-        // Constructor pattern (v2.4.5 style)
         const parser = new (PDFParseClass as any)({ data: req.file.buffer });
         const result = await parser.getText();
         text = result.text;
       } else {
-        // Function pattern (v1.1.1 style)
         const extractFunc = typeof pdf === 'function' ? pdf : (pdf as any).default;
         if (typeof extractFunc === 'function') {
           const data = await extractFunc(req.file.buffer);
@@ -83,8 +76,6 @@ async function startServer() {
       }
 
       const cleanText = text.replace(/\s+/g, ' ').trim();
-      console.log(`Extraction complete. Length: ${cleanText.length}`);
-
       res.json({
         title: req.file.originalname,
         content: cleanText.substring(0, 300000)
@@ -94,6 +85,14 @@ async function startServer() {
       res.status(500).json({ error: "Failed to parse PDF" });
     }
   });
+
+  return app;
+}
+
+async function startServer() {
+  console.log("Starting GenAI Researcher server...");
+  const app = await createExpressApp();
+  const PORT = 3000;
 
   console.log("Configuring Vite middleware...");
   // Vite middleware for development
